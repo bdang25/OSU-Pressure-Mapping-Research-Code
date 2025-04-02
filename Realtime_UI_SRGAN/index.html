@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Real-Time Pressure Map</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 30px;
+    }
+    .container {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+    }
+    img {
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    }
+    h3 {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Real-Time Pressure Map Upscaling (6×6 → 32×32)</h2>
+
+  <div class="container">
+    <div>
+      <h3>Original 6×6 Input</h3>
+      <img id="input-img" src="" alt="6x6 Input" width="300">
+    </div>
+    <div>
+      <h3>Upscaled 32×32 Output (SR-GAN)</h3>
+      <img id="output-img" src="" alt="32x32 Output" width="300">
+    </div>
+  </div>
+
+  <script>
+    async function fetchImages() {
+      const res = await fetch("http://127.0.0.1:5000/predict");
+      const data = await res.json();
+      document.getElementById("input-img").src = data.input_image + "?" + new Date().getTime();
+      document.getElementById("output-img").src = data.output_image + "?" + new Date().getTime();
+    }
+
+    fetchImages();
+    setInterval(fetchImages, 2000);
+  </script>
+</body>
+</html>
