@@ -1,3 +1,0 @@
-Flask
-numpy
-# plus any ML libraries your model requires (e.g., tensorflow, pytorch, etc.)

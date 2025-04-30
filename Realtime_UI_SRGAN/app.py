@@ -1,45 +1,64 @@
 from flask import Flask, jsonify, send_file
 from flask_cors import CORS
-import os
-import random
+import numpy as np
+
+import matplotlib
+matplotlib.use('Agg')  # ✅ Use non-GUI backend
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+
 from model_inference import upscale_image
+from utils import read_latest_sensor_data
 from PIL import Image
+import os
 
 app = Flask(__name__)
 CORS(app)
 
-IMAGE_FOLDER = "../images_6x6"
 STATIC_FOLDER = "static"
 os.makedirs(STATIC_FOLDER, exist_ok=True)
 
 @app.route("/predict", methods=["GET"])
 def predict():
-    image_files = [f for f in os.listdir(IMAGE_FOLDER) if f.endswith(".png")]
-    if not image_files:
-        return jsonify({"error": "No images found."}), 404
+    # Step 1: Get 6x6 matrix from hardware
+    matrix = read_latest_sensor_data("6x6_data.csv")
 
-    # Select a random 6x6 image
-    selected_image = random.choice(image_files)
-    input_path = os.path.join(IMAGE_FOLDER, selected_image)
+    # Step 2: Debug info
+    print("Real-time 6x6 Matrix:")
+    print(matrix)
+    if np.all(matrix == 0):
+        print("⚠️  Warning: All values are zero! Please check sensor connections or CSV data.")
 
-    # Save resized version of the original 6x6 image
-    input_img = Image.open(input_path).convert("RGB")
-    input_display_path = os.path.join(STATIC_FOLDER, "input_6x6.png")
-    input_img.resize((300,300), Image.NEAREST).save(input_display_path)
+    # Step 3: Create 6x6 heatmap image using safe Matplotlib backend
+    input_path = os.path.join(STATIC_FOLDER, "input_6x6.png")
+    #norm_matrix = (matrix - np.min(matrix)) / (np.max(matrix) - np.min(matrix) + 1e-8)
 
-    # Upscale with SR-GAN and save output
+    fig, ax = plt.subplots(figsize=(2, 2), dpi=32)
+    #ax.imshow(norm_matrix, cmap="viridis", interpolation="nearest")
+    ax.imshow(matrix, cmap="viridis", interpolation="nearest", vmin=0,vmax=30)
+    ax.axis("off")
+
+    canvas = FigureCanvas(fig)
+    canvas.print_png(input_path)
+    plt.close(fig)
+
+    # Step 4: Run SRGAN on 6x6 image
     output_img = upscale_image(input_path)
     output_path = os.path.join(STATIC_FOLDER, "output_srgan_32x32.png")
     output_img.resize((300, 300), Image.BICUBIC).save(output_path)
 
+    # Step 5: Extract statistics
+    max_force = float(np.max(matrix))
+    total_force = float(np.sum(matrix))
 
-    # Return both image URLs
+    # Step 6: Return image URLs and stats
     return jsonify({
         "input_image": "http://127.0.0.1:5000/static/input_6x6.png",
-        "output_image": "http://127.0.0.1:5000/static/output_srgan_32x32.png"
+        "output_image": "http://127.0.0.1:5000/static/output_srgan_32x32.png",
+        "max_force": max_force,
+        "total_force": total_force
     })
 
-# Serve static files
 @app.route("/static/<path:filename>")
 def serve_static(filename):
     return send_file(os.path.join(STATIC_FOLDER, filename), mimetype="image/png")
